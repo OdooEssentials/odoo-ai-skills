@@ -1,6 +1,6 @@
-# Odoo Translation
+# Odoo i18n
 
-Add or update translations for an Odoo module.
+Export, import and manage translations for an Odoo module.
 
 ## When to use
 

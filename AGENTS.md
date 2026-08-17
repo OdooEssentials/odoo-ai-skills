@@ -10,7 +10,7 @@ This repository stores reusable AI skills for Odoo work.
 
 - `odoo-module-migration` — migrate an Odoo module to a newer version.
 - `odoo-coding-conventions` — apply Odoo Python/XML/data conventions.
-- `odoo-translation` — add or update module translations.
+- `odoo-i18n` — export, import and manage module translations.
 
 ## For Devin
 
