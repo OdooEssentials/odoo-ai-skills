@@ -47,8 +47,28 @@ Migrate an Odoo module from one version to another. Follow the OCA migration con
 
 ## Migration steps
 
-1. **Prepare the branch** (only in a git-tracked repository):
-   - `git checkout -b <target>-mig-<module> origin/<target>.0` or equivalent.
+1. **Prepare the branch on a fork of the upstream OCA repository** (only in a git-tracked repository):
+   - Fork the upstream OCA repository on GitHub (e.g., `https://github.com/OCA/$repo`) to your personal or organization account (`$user_org`).
+   - Clone the fork locally and add the upstream remote:
+     ```
+     git clone https://github.com/$user_org/$repo.git
+     cd $repo
+     git remote add upstream https://github.com/OCA/$repo.git
+     ```
+   - Fetch the origin version branches from the upstream remote:
+     ```
+     git fetch upstream
+     ```
+   - Create the migration branch from the target upstream branch:
+     ```
+     git checkout -b <target>.0-mig-<module> upstream/<target>.0
+     ```
+   - Port the module's git history from the source branch using the `git format-patch` workflow from the OCA migration wiki:
+     ```
+     git format-patch --keep-subject --stdout upstream/<target>.0..upstream/<source>.0 -- <module-path> | git am -3 --keep
+     ```
+     If the patch application fails, resolve the conflicts manually, continue with `git am --continue`, or abort with `git am --abort` and copy the source module files without history.
+   - If the module was renamed or moved from a different repository structure, use `git-filter-repo` to rewrite the history to the target module path, following the `git-filter-repo` documentation.
    - If the module is in a submodule, handle the submodule branch first.
 
 2. **Bump the manifest version**:
@@ -108,6 +128,14 @@ Migrate an Odoo module from one version to another. Follow the OCA migration con
       Assisted-by: Devin:SWE-1.7 Medium
       ```
     - Otherwise, use a descriptive commit message that focuses on the "why" of the migration.
+
+11. **Open a pull request**:
+    - Push the migration branch to the fork:
+      ```
+      git push -u origin <target>.0-mig-<module>
+      ```
+    - Ask the user for permission before creating the pull request.
+    - If the user confirms, open a pull request from the fork branch to `OCA/$repo:<target>.0` with the title `[MIG] <module>: Migration to <target>.0` and a description that summarizes the changes, references the OCA wiki page, and lists any TODOs or warnings.
 
 ## Output
 
