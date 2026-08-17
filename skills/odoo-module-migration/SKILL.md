@@ -88,6 +88,11 @@ Migrate an Odoo module from one version to another. Follow the OCA migration con
 
 7. **Check Python and XML compatibility**:
    - Use `grep` to find deprecated API calls (e.g., `api.one`, `api.returns`, `api.cr_uid`, `api.cr_uid_ids`, `sudo()` with `env.cr` patterns, `browse_ref`, `self.env['ir.values']`, etc.).
+   - In `logging` calls, do **not** use f-strings. Use `%`-style string interpolation with values passed as extra `*args`, e.g.:
+     ```python
+     _logger.info("Processed %s records for partner %s", len(records), partner.name)
+     ```
+     This keeps log messages lazy-evaluated and friendly to log aggregation/Sentry.
    - Verify `external_id` references still exist in target core/OCA modules.
    - Update `noupdate` flags if defaults changed.
 
