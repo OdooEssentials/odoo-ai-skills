@@ -6,6 +6,12 @@ This repository stores reusable AI skills for Odoo work.
 - Each `SKILL.md` contains workflow, conventions, and tool instructions for that task.
 - When a request matches a skill, read and follow the relevant `SKILL.md` before acting.
 
+## Available skills
+
+- `odoo-module-migration` — migrate an Odoo module to a newer version.
+- `odoo-coding-conventions` — apply Odoo Python/XML/data conventions.
+- `odoo-translation` — add or update module translations.
+
 ## For Devin
 
 Use the `skill` tool to discover and invoke skills in this repo:
