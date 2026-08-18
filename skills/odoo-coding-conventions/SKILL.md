@@ -21,6 +21,7 @@ Apply these conventions when writing or reviewing Odoo custom or OCA module code
 9. Wrap user-visible strings with `from odoo import _` and `_('...')`; do not use f-strings inside `_()`.
 10. Keep XML `id` attributes stable; use `name` attributes for selectors when possible.
 11. Avoid breaking changes in public model methods; prefer additive changes and clear deprecation.
+12. Do not add docstrings to model method extensions that call `super()`. Explain the extension with a regular code comment instead of replacing or adding a docstring.
 
 ## Output
 
