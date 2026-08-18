@@ -1,3 +1,20 @@
+---
+name: odoo-documentation
+description: Locate and use the official Odoo functional and technical documentation
+argument-hint: "<odoo-version> <topic>"
+allowed-tools:
+  - read
+  - grep
+  - exec
+  - webfetch
+permissions:
+  allow:
+    - Read(**/*.md)
+    - Read(**/*.rst)
+    - Read(**/*.txt)
+    - Exec(git)
+---
+
 # Odoo documentation
 
 Locate and use the official Odoo functional and technical documentation.
