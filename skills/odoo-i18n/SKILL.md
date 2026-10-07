@@ -1,3 +1,8 @@
+---
+name: odoo-i18n
+description: Export, import and manage Odoo module translations (.pot/.po files, i18n workflow)
+---
+
 # Odoo i18n
 
 Export, import and manage translations for an Odoo module.
