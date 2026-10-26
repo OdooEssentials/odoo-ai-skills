@@ -79,6 +79,11 @@ evidence — paste them into the commit message or PR description when relevant.
 
 ## Commit guidelines
 
+These conventions apply to project/custom addon repositories. For commits to
+`odoo/odoo`, `odoo/enterprise`, or their forks, follow the upstream `odoo-git`
+skill (`[TAG] scope: summary` format); for OCA repositories, use OCA
+conventions (e.g. `[MIG]` migration commits).
+
 - Only commit when explicitly requested.
 - Structure: `topic: user-facing release-note style title`. For Odoo addon
   changes, the topic is the module name — e.g. `sale_order: add confirmation
