@@ -26,7 +26,10 @@ the official skill wins — report it so this file can be fixed.
 ## Project conventions
 
 1. **Top-down ordering**: define the current function or class before the helper
-   functions it uses.
+   functions it uses. Exception: inside a model class, member ordering follows
+   the upstream model-body layout in `odoo-guidelines` (private attrs →
+   defaults → fields → computes → constrains → CRUD → actions → business
+   methods), not call order.
 2. **Prefer Odoo `models.AbstractModel` mixins** over Python `ABC` for
    reusable/abstract APIs and adapters. Do not use Python `dataclasses`; use
    standard Odoo models and plain dictionaries when a simple data structure is
