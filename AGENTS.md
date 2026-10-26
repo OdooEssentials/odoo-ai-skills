@@ -13,6 +13,29 @@ This repository stores reusable AI skills for Odoo work.
 - `odoo-coding-conventions` — project-specific conventions that extend the upstream skills below.
 - `odoo-i18n` — export, import and manage module translations.
 
+## Skill format
+
+Skills in this repository must follow the
+[Agent Skills specification](https://agentskills.io/specification):
+
+- Each skill is a directory `skills/<skill-name>/` containing a `SKILL.md`.
+- `SKILL.md` starts with YAML frontmatter followed by Markdown instructions.
+- Frontmatter may only contain: `name`, `description` (both required),
+  `license`, `compatibility`, `metadata`, `allowed-tools`.
+- `name` must match the directory name — lowercase alphanumeric and hyphens
+  only, no leading/trailing or consecutive hyphens, max 64 chars.
+- `allowed-tools` is a space-separated string, not a YAML list
+  (e.g. `allowed-tools: Read Grep Bash`).
+- Non-standard fields such as `argument-hint` are not allowed.
+- Keep `SKILL.md` under ~500 lines; move detailed material into referenced
+  files (e.g. `references/`, `scripts/`, `assets/`).
+
+Validate skills before committing:
+
+```bash
+uvx --from skills-ref agentskills validate skills/<skill-name>
+```
+
 ## Upstream Odoo skills
 
 The Odoo source repository ships official agent skills under `skills/`,
