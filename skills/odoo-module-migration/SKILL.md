@@ -1,165 +1,233 @@
 ---
 name: odoo-module-migration
 description: Migrate an Odoo custom or OCA module to a newer version using OCA conventions
-argument-hint: "<module-path> <source-version> <target-version>"
-allowed-tools:
-  - Read
-  - Edit
-  - Write
-  - Grep
-  - Glob
-  - Bash
-  - WebFetch
+allowed-tools: Read Edit Write Grep Glob Bash WebFetch
 ---
 
-Migrate an Odoo module from one version to another. Follow the OCA migration conventions and use the OCA maintainer-tools Wiki for version-specific changes.
+Migrate an Odoo module from one version to another following OCA migration
+conventions. Work through the steps autonomously; only stop to ask the user
+when an input cannot be inferred, a dependency blocks the migration, or a step
+explicitly requires permission.
 
-## Before you start
+## Inputs
 
-1. Identify the module to migrate:
-   - If the user provided `<module-path>`, use it.
-   - Otherwise, find the module by name under the Odoo addons paths.
+Resolve these before doing anything else:
 
-2. Determine versions:
-   - Default source = the version declared in `__manifest__.py` (e.g., `14.0.3.0.0` → `14.0`).
-   - Default target = the currently checked-out Odoo branch or the highest remote version branch (e.g., `19.0`).
+- `<module-path>` — the module to migrate. If the user gave a path or name, use
+  it; otherwise locate it under the project's addons paths.
+- `<source>` — source version. Default: the major version in
+  `__manifest__.py` (`14.0.3.0.0` → `14.0`).
+- `<target>` — target version. Default: the currently checked-out Odoo branch,
+  else the highest remote version branch (e.g. `19.0`).
+- Module type — determines which optional steps apply:
+  - **OCA** — the module lives in (or is destined for) an OCA repository:
+    fork + format-patch history port, README regeneration, `[MIG]` commit
+    convention, and PR to OCA all apply.
+  - **Custom** — project repository or vendored addons dir (e.g.
+    `src/private-addons`): skip the fork, history port, README regeneration,
+    and OCA commit/PR conventions. Everything else is identical.
 
-3. Determine the module type:
-   - **OCA module**: lives in (or is destined for) an OCA repository — full fork/format-patch/PR workflow applies.
-   - **Custom/private module**: lives in a project repository or vendored addons dir (e.g., `src/private-addons`) — skip the OCA fork and PR steps; the rest of the migration process is identical.
+## Preflight
 
-4. Fetch the OCA migration guide for the target version from:
-
-   - `https://github.com/OCA/maintainer-tools/wiki/Migration-to-version-<target>.0`
-   - If the exact page does not exist, use the closest lower version and mention the gap.
-
-5. Use OpenUpgrade `upgrade_analysis.txt` files to learn data model and ORM changes:
-   - `https://github.com/OCA/OpenUpgrade/tree/<target>.0/openupgrade_scripts/scripts/<module>/` — pick the subdirectory matching the module's version on the source branch (e.g., `account/19.0.1.0/upgrade_analysis.txt`).
-   - Check also successive versions if the migration jumps more than one release (e.g., 14.0 → 19.0 requires looking at 15, 16, 17, 18, and 19).
+1. **Check dependencies.** Every module in `depends` must exist for `<target>`
+   (in core or in the target OCA repository). List any missing ones for the
+   user before proceeding — a missing dependency will block installation at
+   the verification step, so surface it now rather than late.
+2. **Fetch the OCA migration guide** for `<target>`:
+   `https://github.com/OCA/maintainer-tools/wiki/Migration-to-version-<target>.0`.
+   If that page does not exist, use the closest lower version and note the gap
+   in the final report.
+3. **Fetch OpenUpgrade analyses** for data-model and ORM changes:
+   `https://github.com/OCA/OpenUpgrade/tree/<target>.0/openupgrade_scripts/scripts/<module>/<module-version>/upgrade_analysis.txt`
+   - Read the analysis for `<module>` itself if OpenUpgrade covers it, and for
+     every core/OCA dependency module whose models the code touches (fields
+     renamed there break this module).
+   - If OpenUpgrade has no entry for a module, fall back to the wiki plus
+     greps of this module's code against the target source for the models it
+     uses.
+   - When jumping more than one release (e.g. 14.0 → 19.0), repeat for every
+     intermediate version (15, 16, 17, 18, 19).
 
 ## Migration steps
 
-1. **Prepare the working branch** (only in a git-tracked repository):
-   - **OCA module** — fork the upstream repository and port the module's git history:
-     - Fork the upstream OCA repository on GitHub (e.g., `https://github.com/OCA/$repo`) to your personal or organization account (`$user_org`).
-     - Clone the fork locally and add the upstream remote:
-       ```
-       git clone https://github.com/$user_org/$repo.git
-       cd $repo
-       git remote add upstream https://github.com/OCA/$repo.git
-       ```
-     - Fetch the origin version branches from the upstream remote:
-       ```
-       git fetch upstream
-       ```
-     - Create the migration branch from the target upstream branch:
-       ```
-       git checkout -b <target>.0-mig-<module> upstream/<target>.0
-       ```
-     - Port the module's git history from the source branch using the `git format-patch` workflow from the OCA migration wiki:
-       ```
-       git format-patch --keep-subject --stdout upstream/<target>.0..upstream/<source>.0 -- <module-path> | git am -3 --keep
-       ```
-       - The `-- <module-path>` filter is required: OCA version branches have unrelated history (`git merge-base upstream/<target>.0 upstream/<source>.0` is empty), so only commits touching the module can be ported.
-       - Never push the migration branch directly to the upstream OCA repository. Always push to your fork.
-       If the patch application fails, resolve the conflicts manually, continue with `git am --continue`, or abort with `git am --abort` and copy the source module files without history.
-     - If the module was renamed or moved from a different repository structure, use `git-filter-repo` to rewrite the history to the target module path, following the `git-filter-repo` documentation.
-   - **Custom/private module** — no upstream to fork or port history from:
-     ```
-     git checkout -b <target>.0-mig-<module>
-     ```
-     Work on the project repository's own branch (or the submodule's branch, see below). If the module lives on a single-version branch, just work there directly.
-   - If the module is in a submodule, handle the submodule branch first.
+### 1. Prepare the working branch
 
-2. **Bump the manifest version and boilerplate**:
-   - In `<module-path>/__manifest__.py` set `version` to `<target>.0.1.0.0` (or preserve the patch/major/minor business version if applicable).
-   - Ensure `installable` is `True` — OCA convention marks unmigrated modules `installable: False` on the target branch, so restore it when porting.
-   - Update `license`, `author`, `website`, and `depends` only if required by the target conventions.
-   - OCA-style repos only: regenerate `<module-path>/README.rst` and `<module-path>/static/description/index.html` with `oca-gen-addon-readme`, and update the root `README.md` addons table and `setup/_metapackage/pyproject.toml` if the repo uses them.
-   - These boilerplate changes are part of the migration commit but should not be listed in the commit message.
+Only in a git-tracked repository. If the module lives in a submodule, create
+the branch in the submodule first.
 
-3. **Remove previous migration scripts**:
-   - Delete the `migrations/` folder inside the module. New migration scripts should be generated from the source database, not kept from the old version.
+- **Custom:** `git checkout -b <target>.0-mig-<module>` — or work directly on
+  the module's existing single-version branch if it has one.
+- **OCA:** fork the upstream repository and port the module's git history:
+  ```bash
+  git clone https://github.com/$user_org/$repo.git
+  cd $repo
+  git remote add upstream https://github.com/OCA/$repo.git
+  git fetch upstream
+  git checkout -b <target>.0-mig-<module> upstream/<target>.0
+  git format-patch --keep-subject --stdout upstream/<target>.0..upstream/<source>.0 -- <module-path> | git am -3 --keep
+  ```
+  - The `-- <module-path>` filter is required: OCA version branches have
+    unrelated history, so only commits touching the module can be ported.
+  - Never push the migration branch to upstream OCA — always to your fork.
+  - If `git am` fails, resolve conflicts and `git am --continue`, or
+    `git am --abort` and copy the module files without history.
+  - If the module was renamed or moved, rewrite the history to the target
+    path with `git-filter-repo`.
 
-4. **Run automatic migration tooling when available**:
-   - If `odoo-module-migrator` is installed and the project is OCA-style, run:
-     ```
-     odoo-module-migrate --directory <repo> --modules <module> --init-version-name <source> --target-version-name <target>
-     ```
-   - If `oca-port` is installed and the module already exists on the target branch, run a dry-run first:
-     ```
-     oca-port origin/<source>.0 origin/<target>.0 <module-path> --verbose --dry-run
-     ```
+### 2. Bump the manifest and boilerplate
 
-5. **Apply generic code transformations**:
-   - Rename `__openerp__.py` to `__manifest__.py` if still present.
-   - Replace `import openerp` / `from openerp` with `import odoo` / `from odoo`.
-   - Remove `# -*- encoding: utf-8 -*-` shebangs (V11+).
-   - Remove `select=True` in fields; use `index=True` (V9+).
-   - Convert `<act_window>`, `<report>`, and `<record>`-based menu actions to the modern equivalents.
-   - Replace string/XML selectors by `name` or other stable selectors.
-   - Update `attrs`, `states`, `invisible`, `readonly`, and `required` attributes to use `readonly`, `required`, `invisible` with the new expression syntax where applicable.
+- Set `version` in `__manifest__.py` to `<target>.0.1.0.0` (or preserve the
+  business major/minor/patch if the project uses one).
+- Ensure `installable` is `True` — OCA marks unmigrated modules
+  `installable: False` on the target branch, so restore it when porting.
+- Update `license`, `author`, `website`, `depends` only if the target
+  conventions require it.
+- OCA only: regenerate `README.rst` and `static/description/index.html` with
+  `oca-gen-addon-readme`; update the root `README.md` addons table and
+  `setup/_metapackage/pyproject.toml` if the repo uses them.
+- These boilerplate changes go in the migration commit but are not listed in
+  the commit message.
 
-6. **Address target-version changes from the OCA wiki and OpenUpgrade**:
-   - For each breaking change listed in the target wiki page, grep the module for affected patterns and update them.
-   - Check the OpenUpgrade `upgrade_analysis.txt` for the target version (and any intermediate versions when jumping more than one release) for field renames and ORM changes. Grep the module's Python and test files for the old field names.
-   - Consult the official Odoo skills (`odoo-guidelines`, `odoo-web-guidelines`, `odoo-security`) for current code idioms — read them from the `master` branch on GitHub: `https://github.com/odoo/odoo/tree/master/skills/` (they only exist starting with Odoo 20, so a local Odoo checkout has them only if it is a master/20.0+ checkout).
-   - Example of the kind of change to look for: in Odoo 19.0, `sale.order.line.product_uom` was renamed to `product_uom_id` (apply in both model code and test data dictionaries). Check the wiki/analysis for *your* target version — do not assume a specific rename applies to other versions.
-   - Pay special attention to:
-     - ORM method renames/removals (`_auto`, `env.ref`, `_compute_` patterns, `unlink`, `write` constraints).
-     - Field renames on `sale.order.line` and `purchase.order.line` (e.g., `product_uom`, `product_uom_qty`, `price_unit` changes across versions).
-     - View architecture changes (`kanban`, `tree`, `form`, `search` templates, `widget` changes).
-     - Security changes (`ir.model.access.csv`, record rules, group names).
-     - Report/QWeb changes.
+### 3. Remove previous migration scripts
 
-7. **Check Python and XML compatibility**:
-   - Use `grep` to find deprecated API calls (e.g., `api.one`, `api.returns`, `api.cr_uid`, `api.cr_uid_ids`, `sudo()` with `env.cr` patterns, `browse_ref`, `self.env['ir.values']`, etc.).
-   - In `logging` calls, do **not** use f-strings. Use `%`-style string interpolation with values passed as extra `*args`, e.g.:
-     ```python
-     _logger.info("Processed %s records for partner %s", len(records), partner.name)
-     ```
-     This keeps log messages lazy-evaluated and friendly to log aggregation/Sentry.
-   - Verify `external_id` references still exist in target core/OCA modules.
-   - Update `noupdate` flags if defaults changed.
+Delete the module's `migrations/` folder — it contains scripts written for the
+previous version jump. If this migration needs upgrade scripts, write fresh
+ones for `<source>` → `<target>` under `migrations/<target>.0.1.0.0/`; do not
+port old scripts forward.
 
-8. **Run pre-commit**:
-   - `pre-commit run -a` in the module directory (or repository root).
-   - If the repo's `.pre-commit-config.yaml` references a Python version that is not installed (e.g., `python: python3.12` while only `python3.10` is available), create a temporary copy with a matching Python version and run `pre-commit -c <temp-config> run -a`. Revert the temporary config when done.
-   - Fix formatting, lint, and any license/copyright headers reported.
-   - Do not commit auto-generated fixes until you have reviewed them.
+### 4. Run automatic migration tooling when available
 
-9. **Test installation and run the module tests**:
-   - Try to install the module with the target Odoo version, using the local tooling available (`osh odoo -i <module> --stop` or `odoo-bin -i <module> --stop` or `pytest` if the project has tests).
-   - Run the module's tests; test data dictionaries are a common place for renamed fields (e.g., `product_uom` vs `product_uom_id`) to break.
-   - If installation or tests fail, trace the error to the root cause, fix it, amend the migration commit, and retry.
+- `odoo-module-migrator` (OCA-style repos):
+  ```bash
+  odoo-module-migrate --directory <repo> --modules <module> --init-version-name <source> --target-version-name <target>
+  ```
+- `oca-port` — when the module already exists on the target branch, dry-run
+  first:
+  ```bash
+  oca-port origin/<source>.0 origin/<target>.0 <module-path> --verbose --dry-run
+  ```
 
-10. **Commit**:
-    - OCA-style repository, use the OCA migration commit convention:
-      ```
-      [MIG] <module>: Migration to <target>.0
-      
-      Port <module> from <source>.0 to <target>.0.
-      
-      <One or two real migration changes, e.g. a field rename or API change.>
-      
-      Assisted-by: HARNESS:MODEL
-      ```
-    - Custom/private module: use the project's commit convention — typically `<module>: migrate to <target>.0` (module name as topic, release-note style title). The same `Assisted-by: HARNESS:MODEL` trailer applies.
-    - Do **not** list obvious changes such as manifest version bumps, `README.rst`/index regeneration, or root README/metapackage updates in the commit message. Those files are still part of the migration commit, but the message should focus on the non-obvious code changes.
-    - Any fixes discovered during migration should be amended into this migration commit (`git commit --amend`), not added as new commits. If an earlier commit needs changing, use `git rebase --onto` or a soft reset — interactive `git rebase -i` is not available to non-interactive agents.
-    - The human (e.g., the user) must be the commit author. Verify `git log -1` does not contain an unwanted `Co-Authored-By` trailer; remove it if it was auto-injected by a git wrapper. Only use `Assisted-by: HARNESS:MODEL` to disclose AI assistance, replacing `HARNESS:MODEL` with the actual harness and model identifier.
+### 5. Apply generic code transformations
 
-11. **Open a pull request** — ask the user for permission first:
-    - OCA module: push the migration branch to the fork (`git push -u origin <target>.0-mig-<module>`) and open a PR to `OCA/$repo:<target>.0` with the title `[MIG] <module>: Migration to <target>.0`. The description summarizes the non-obvious migration changes, references the OCA wiki page, and lists any TODOs or warnings.
-      - Include a dependency checklist in the PR description. If any module dependencies have not yet been migrated to the target version, list them as unchecked checklist items; otherwise mark them complete.
-      - If `git_create_pr`/`gh` fails due to token scope (`Resource not accessible by personal access token`), do not push to OCA. Provide the user with a compare URL (`https://github.com/OCA/$repo/compare/<target>.0...$user:$repo:<target>.0-mig-<module>?expand=1`) and ready-to-copy title/description so they can open the PR manually.
-    - Custom/private module: push to the project repository and open a PR against its main/target branch if the team reviews that way; otherwise follow the project's own workflow.
+Apply only the transformations introduced between `<source>` and `<target>` —
+the version markers indicate when each became required:
+
+- (V9+) Rename `__openerp__.py` → `__manifest__.py`; `import openerp` →
+  `import odoo`; `select=True` → `index=True`.
+- (V11+) Remove `# -*- encoding: utf-8 -*-` shebangs.
+- Convert `<act_window>`, `<report>`, and `<record>`-based menu actions to
+  their modern equivalents.
+- Replace string/XML selectors with `name` or other stable selectors.
+- Migrate `attrs`/`states` to the inline `invisible`/`readonly`/`required`
+  expression syntax.
+
+### 6. Apply target-version changes from the wiki and OpenUpgrade
+
+- For each breaking change in the target wiki page, grep the module for the
+  affected pattern and update it.
+- For field/method renames found in `upgrade_analysis.txt`, grep the module's
+  Python, XML, and test files for the old names — test data dictionaries are a
+  common breakage point (e.g. `product_uom` → `product_uom_id` in 19.0).
+- Consult the official Odoo skills (`odoo-guidelines`, `odoo-web-guidelines`,
+  `odoo-security`) for current code idioms — read them from the `master`
+  branch on GitHub (`https://github.com/odoo/odoo/tree/master/skills/`); they
+  only exist starting with Odoo 20.
+- Pay special attention to:
+  - ORM method renames/removals (`_auto`, `env.ref`, `_compute_` patterns,
+    `unlink`, `write` constraints).
+  - Field renames on `sale.order.line` and `purchase.order.line`
+    (`product_uom`, `product_uom_qty`, `price_unit` changes across versions).
+  - View architecture changes (`kanban`, `list`/`tree`, `form`, `search`,
+    `widget` changes).
+  - Security changes (`ir.model.access.csv`, record rules, group names).
+  - Report/QWeb changes.
+
+### 7. Check Python and XML compatibility
+
+- Grep for deprecated API calls: `api.one`, `api.returns`, `api.cr_uid`,
+  `api.cr_uid_ids`, `browse_ref`, `self.env['ir.values']`, `sudo()` with raw
+  `env.cr`, etc.
+- In `logging` calls, do not use f-strings — use `%`-style interpolation with
+  values as extra args so messages stay lazy and aggregation-friendly:
+  ```python
+  _logger.info("Processed %s records for partner %s", len(records), partner.name)
+  ```
+- Verify every `external_id` reference still exists in target core/OCA
+  modules.
+- Update `noupdate` flags if defaults changed.
+
+### 8. Run pre-commit
+
+- `pre-commit run -a` in the module directory or repository root.
+- If `.pre-commit-config.yaml` pins a Python version that is not installed,
+  create a temporary copy with a matching version and run
+  `pre-commit -c <temp-config> run -a`; revert the temp config afterwards.
+- Fix formatting, lint, and license/copyright headers. Review auto-generated
+  fixes before committing them.
+
+### 9. Verify: install and run tests
+
+- Preferred: install on a real target-version environment
+  (`osh odoo -i <module> --stop`, `odoo-bin -i <module> --stop`, or the
+  project's `pytest` setup), then run the module's tests.
+- If no Odoo environment is available, still run a minimum sanity check —
+  compile the Python and parse every XML file:
+  ```bash
+  python -m compileall -q <module-path>
+  find <module-path> -name '*.xml' -exec xmllint --noout {} +
+  ```
+  and state clearly in the report that install/test verification was skipped.
+- On any failure, trace the root cause, fix it, amend the migration commit,
+  and retry.
+
+### 10. Commit
+
+- OCA convention:
+  ```
+  [MIG] <module>: Migration to <target>.0
+
+  Port <module> from <source>.0 to <target>.0.
+
+  <One or two real migration changes, e.g. a field rename or API change.>
+
+  Assisted-by: HARNESS:MODEL
+  ```
+- Custom modules: use the project's convention — typically
+  `<module>: migrate to <target>.0` (module name as topic, release-note style
+  title). Same `Assisted-by: HARNESS:MODEL` trailer.
+- Do not list obvious changes (manifest bump, README/index regeneration,
+  metapackage updates) in the message — those files stay in the commit, but
+  the message focuses on non-obvious code changes.
+- Amend fixes into the migration commit (`git commit --amend`); do not stack
+  fixup commits. If an earlier commit needs changing, use `git rebase --onto`
+  or a soft reset — interactive `git rebase -i` is unavailable to
+  non-interactive agents.
+- The human must be the commit author. Verify `git log -1` has no unwanted
+  `Co-Authored-By` trailer (remove it if a git wrapper injected one); use only
+  `Assisted-by: HARNESS:MODEL`, substituting the real harness and model.
+
+### 11. Open a pull request — ask the user for permission first
+
+- OCA: push to the fork (`git push -u origin <target>.0-mig-<module>`) and
+  open a PR to `OCA/$repo:<target>.0` titled
+  `[MIG] <module>: Migration to <target>.0`. The description summarizes the
+  non-obvious changes, references the OCA wiki page, and lists TODOs/warnings.
+  - Include a dependency checklist: any `depends` modules not yet migrated to
+    `<target>` are unchecked items.
+  - If `gh`/PR creation fails on token scope, do not push to OCA. Give the
+    user a compare URL
+    (`https://github.com/OCA/$repo/compare/<target>.0...$user:$repo:<target>.0-mig-<module>?expand=1`)
+    and a ready-to-copy title/description.
+- Custom: push to the project repository and open a PR against its main/target
+  branch if the team reviews that way; otherwise follow the project workflow.
 
 ## Output
 
-Provide a concise report that includes:
-- The module path and version migration performed.
-- The OCA wiki page(s) consulted.
+Provide a concise report including:
+
+- The module path and the `<source>` → `<target>` migration performed.
+- The OCA wiki page(s) and OpenUpgrade analyses consulted (or their absence).
 - Key code or view changes made.
-- Any remaining TODOs, warnings, or manual checks the user should handle.
+- Verification performed — install/tests, or degraded-mode checks only.
+- Remaining TODOs, warnings, or manual checks for the user.
 - The final manifest version.
