@@ -47,23 +47,41 @@ latest version (`https://github.com/odoo/odoo/tree/master/skills/`):
 - `odoo-web-guidelines` — JavaScript, Owl templates and SCSS under `static/`.
 - `odoo-security` — security audit patterns (sudo, raw SQL, routes, XSS, eval...).
 - `odoo-review` — review process dispatching to the three skills above.
+- `odoo-git` — commit message format, branch targeting, and PR hygiene for
+  Odoo's own repositories (odoo/odoo, odoo/enterprise, and their forks).
 
-Install them alongside this repo's skills — per project into `.devin/skills/` or
-`.agents/skills/`, or globally into `~/.config/devin/skills/`:
+## Installing both sets of skills
+
+This repo's skills and the upstream skills are designed to be used together:
+they cross-reference each other with relative paths (`../odoo-guidelines/...`),
+so they must live as siblings in the same skills directory. Install **both**
+sets, side by side, into one of:
+
+- Per project: `.devin/skills/` or `.agents/skills/` at the project root.
+- Globally: `~/.config/devin/skills/`.
 
 ```bash
-cp -r <odoo-checkout>/skills/* ~/.config/devin/skills/   # from a master/20.0+ checkout
-# or straight from GitHub:
+# 1. This repo's skills
+cp -r <this-repo>/skills/* ~/.config/devin/skills/
+
+# 2. Upstream Odoo skills — from a master/20.0+ checkout...
+cp -r <odoo-checkout>/skills/* ~/.config/devin/skills/
+
+#    ...or straight from GitHub:
 git clone --depth 1 --filter=blob:none --sparse https://github.com/odoo/odoo.git /tmp/odoo-master \
   && git -C /tmp/odoo-master sparse-checkout set skills \
   && cp -r /tmp/odoo-master/skills/* ~/.config/devin/skills/
 ```
 
-Copy them from a `master`/20.0 checkout — they only exist there, so when working
-on older Odoo versions double-check any API detail against the actual target
-source. All upstream skills must be installed together — they reference each
-other. Skills in this repo defer to them for coding rules and only add
-project-specific workflows and deltas.
+All upstream skills must be installed together — they reference each other —
+and copy them from a `master`/20.0 checkout, where they only exist. When
+working on older Odoo versions, double-check any API detail against the actual
+target source.
+
+Skills in this repo defer to the upstream skills for coding rules and only add
+project-specific workflows and deltas. If a rule here seems to conflict with
+the upstream skills, the upstream rule wins for Odoo core code — report it so
+this repo can be fixed.
 
 ## Documentation sources
 
