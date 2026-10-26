@@ -12,7 +12,6 @@ This repository stores reusable AI skills for Odoo work.
 - `odoo-development` — local dev workflows: module install/update commands and running module tests efficiently.
 - `odoo-coding-conventions` — project-specific conventions that extend the upstream skills below.
 - `odoo-i18n` — export, import and manage module translations.
-- `odoo-documentation` — locate and use the official Odoo functional and technical documentation.
 
 ## Upstream Odoo skills
 
