@@ -15,19 +15,27 @@ Export, translate, and import translations for an Odoo module.
 
 ## Marking source strings in code
 
+Marking rules follow `odoo-guidelines` ("Translate only static literals") —
+the essentials:
+
 - Keep source terms in English in Python and XML.
-- Wrap every user-visible string:
-  - Inside models, prefer `self.env._('...')` — it carries the record's
-    language context.
-  - Elsewhere, `from odoo import _`.
-  - For module-level constants, use `odoo.tools.translate._lt` (lazy
-    translation) — plain `_` resolves at import time, before any language
-    context exists.
-- Never use f-strings inside `_()`. Use `%(name)s` placeholders and `%`
-  formatting:
+- In model code use `self.env._(...)` and pass interpolation values as
+  arguments, so the framework can validate placeholders per translation and
+  apply Markup-aware escaping:
   ```python
-  _('Hello %(name)s') % {'name': name}
+  self.env._("%(count)s records imported by %(user)s", count=len(records), user=user.name)
   ```
+- Translate only **static literals**: no f-strings, concatenation, or
+  `%`/`.format` inside `_()`, and no post-lookup `%` formatting
+  (`_(...) % values` is a rejected idiom — it bypasses placeholder
+  validation and reordering).
+- `from odoo import _` is the backward-compatible API for plain functions;
+  in comprehensions it can silently return the untranslated string — prefer
+  `self.env._`.
+- Never call `_()` at module or class level — it runs at import time with no
+  language context. If a module-level constant is unavoidable, make it lazy
+  (`_lt = LazyTranslate(__name__)`) and resolve it where the language is
+  known with `self.env._(LABEL)`.
 - In XML, `string="..."`, `help="..."`, `placeholder="..."`, and similar
   attributes are extracted automatically at export — no marker needed.
 - On field declarations: `translate=True` for plain text, `html_translate`
