@@ -27,14 +27,14 @@ the official skill wins — report it so this file can be fixed.
 
 1. **Top-down ordering**: define the current function or class before the helper
    functions it uses.
-2. **Prefer Odoo `models.AbstractModel` mixins** over Python `ABC` or
-   `dataclasses` for reusable/abstract APIs and adapters.
-3. **Do not use Python `dataclasses`**; use standard Odoo models and plain
-   dictionaries when a simple data structure is needed.
-4. Always add `security/ir.model.access.csv` for new non-abstract models.
-5. Avoid breaking changes in public model methods; prefer additive changes and
+2. **Prefer Odoo `models.AbstractModel` mixins** over Python `ABC` for
+   reusable/abstract APIs and adapters. Do not use Python `dataclasses`; use
+   standard Odoo models and plain dictionaries when a simple data structure is
+   needed.
+3. Always add `security/ir.model.access.csv` for new non-abstract models.
+4. Avoid breaking changes in public model methods; prefer additive changes and
    clear deprecation.
-6. Do not add docstrings to model method extensions that call `super()`. Explain
+5. Do not add docstrings to model method extensions that call `super()`. Explain
    the extension with a regular code comment instead of replacing or adding a
    docstring.
 
