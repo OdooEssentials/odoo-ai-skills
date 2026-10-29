@@ -12,6 +12,7 @@ This repository stores reusable AI skills for Odoo work.
 - `odoo-development` — local dev workflows: module install/update commands and running module tests efficiently.
 - `odoo-coding-conventions` — project-specific conventions that extend the upstream skills below.
 - `odoo-i18n` — export, import and manage module translations.
+- `odoo-website-snippets` — create Website Builder building blocks: static/dynamic snippets, panel registration, options, translations.
 - `living-design-doc` — per-feature living design docs; for Odoo modules they live in the module's `readme/` fragments.
 
 ## Skill format
