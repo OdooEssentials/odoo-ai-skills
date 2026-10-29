@@ -40,6 +40,8 @@ the official skill wins — report it so this file can be fixed.
 5. Do not add docstrings to model method extensions that call `super()`. Explain
    the extension with a regular code comment instead of replacing or adding a
    docstring.
+6. Build `create`/`write` vals through a `_prepare_<model>_values()` method, so
+   downstream modules can override the dict instead of re-creating records.
 
 ## Output
 
