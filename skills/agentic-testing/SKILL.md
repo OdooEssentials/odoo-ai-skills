@@ -192,8 +192,5 @@ paths. See `scripts/check-test-diff.sh --help`.
 
 - `references/test-organization.md` — framework for organizing test
   suites (by story, scope, provenance) and the reorganization workflow.
-- Research writeup (test tampering taxonomy, prior art, defense
-  model): `notebook` repo, `research/tests-as-spec-agentic-workflows.md`
-- Skill spec and roadmap: `notebook` repo, `projects/agentic-testing-skill.md`
 - Upstream test-writing rules: `../odoo-guidelines/` (tests section),
   `../odoo-development/` (running module tests)
