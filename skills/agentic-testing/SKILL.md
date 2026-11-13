@@ -164,6 +164,12 @@ range and enforces the separation mechanically:
   which is what a legitimate reorganization looks like,
 - implementation-only commits are clean.
 
+`--strict` turns REVIEW findings into failures for CI on repos where
+every expectation change must be justified. Known blind spots the
+script documents itself: multiline assertions (expected value on a
+continuation line), fixture files outside test roots, and test settings
+embedded in project config — review still covers those.
+
 Run it in CI as a required check, and locally before pushing. It does
 not replace review — it makes tampering visible and blocks the lazy
 paths. See `scripts/check-test-diff.sh --help`.

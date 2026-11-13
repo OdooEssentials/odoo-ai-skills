@@ -18,28 +18,39 @@
 #   - a commit touching only implementation/doc files is clean.
 #
 # Usage:
-#   check-test-diff.sh BASE [--head REF]
+#   check-test-diff.sh BASE [--head REF] [--strict]
 #
 #   BASE        ref to start from (e.g. origin/main, main, HEAD~5)
 #   --head REF  end ref (default: HEAD)
+#   --strict    treat REVIEW findings (changed expectations) as failures
 #
 # Exit codes: 0 = clean, 1 = violations found, 2 = usage error.
 # Escape hatch for legitimate mixed changes: ALLOW_TEST_CHANGES=1 —
 # but prefer landing spec/test changes in their own commit.
 #
-# Test-file detection covers common layouts: tests/ dirs, test_*.py,
-# *_test.*, *.test.*, *.spec.*. Doc files (*.md, *.rst) are exempt from
-# the "implementation" classification so spec+tests commits pass.
+# Test-file detection covers common layouts: tests/, test/, __tests__/
+# dirs, test_*.py / *_test.* / *.test.* / *.spec.* filenames, and test
+# runner config (conftest.*, pytest.ini, tox.ini). Doc files (*.md,
+# *.rst) are exempt from the "implementation" classification so
+# spec+tests commits pass.
+#
+# Known blind spots (review still required): multiline assertions whose
+# expected value sits on a continuation line carry no assertion keyword
+# and evade the line scan; fixture/data files outside test roots are
+# classified as implementation; project config files that embed test
+# settings (e.g. pyproject.toml) are implementation.
 
 set -euo pipefail
 
 BASE=""
 HEAD_REF="HEAD"
+STRICT=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --head) HEAD_REF="$2"; shift 2 ;;
-        -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
+        --strict) STRICT=1; shift ;;
+        -h|--help) sed -n '2,38p' "$0"; exit 0 ;;
         -*) echo "unknown option: $1" >&2; exit 2 ;;
         *) BASE="$1"; shift ;;
     esac
@@ -49,9 +60,10 @@ done
 
 is_test_file() {
     case "$1" in
-        */tests/*|tests/*|test/*|*/test/*) return 0 ;;
-        test_*.py|*_test.py|test_*.rb|*_test.rb|*_test.go|*_test.java) return 0 ;;
+        */tests/*|tests/*|test/*|*/test/*|*__tests__*) return 0 ;;
+        test_*.py|*/test_*.py|*_test.py|test_*.rb|*/test_*.rb|*_test.rb|test_*.go|*/test_*.go|*_test.go|test_*.java|*/test_*.java|*_test.java) return 0 ;;
         *.test.*|*.spec.*|*_test.*) return 0 ;;
+        conftest.*|pytest.ini|tox.ini|.coveragerc) return 0 ;;
     esac
     return 1
 }
@@ -117,7 +129,7 @@ while IFS= read -r commit; do
                             removed_asserts+=("$content") ;;
                     esac
                     case "$content" in
-                        *skip*|*xfail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
+                        *[Ss]kip*|*[Xx]fail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
                             removed_skips+=("$content") ;;
                     esac
                     case "$content" in
@@ -132,7 +144,7 @@ while IFS= read -r commit; do
                             added_asserts+=("$content") ;;
                     esac
                     case "$content" in
-                        *skip*|*xfail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
+                        *[Ss]kip*|*[Xx]fail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
                             added_skips+=("$content") ;;
                     esac
                     case "$content" in
@@ -164,6 +176,7 @@ while IFS= read -r commit; do
             n_unmatched=$(printf '%s\n' "$unmatched_removed" | sed '/^$/d' | wc -l)
             echo "check-test-diff: REVIEW $short — $n_unmatched assertion line(s) changed; verify each is a spec change ('did the task change this rule?'):" >&2
             printf '%s\n' "$unmatched_removed" | head -20 | sed 's/^/  /' >&2
+            [ "$STRICT" -eq 1 ] && commit_fail=1
         fi
     fi
     if [ -n "$unmatched_added_skips" ]; then
