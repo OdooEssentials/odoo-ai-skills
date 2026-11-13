@@ -1,45 +1,53 @@
 #!/usr/bin/env bash
-# check-test-diff.sh — flag suspicious test changes in a diff.
+# check-test-diff.sh — enforce test/spec separation in a commit range.
 #
-# Tests are the executable spec: they change only when the spec changes.
-# This script makes test tampering visible by failing when a diff since
-# BASE modifies or deletes test files, removes assertion lines, or adds
-# skip markers. Added test files are allowed (reported as info).
+# Tests are the executable spec: they change only when the spec changes,
+# and test changes must not ride along with implementation changes.
+# This script checks each commit in BASE..HEAD:
+#
+#   - a commit touching BOTH test files and implementation files
+#     FAILS (mixed commit — separate them);
+#   - a commit touching ONLY test/doc files is a spec-change commit:
+#     its diff is scanned for bent tests. Assertion lines removed with
+#     NO assertions added at all FAIL (coverage dropped); assertion
+#     lines changed to different content WARN — a changed expectation
+#     is either a spec change or a bent test, and only review can tell
+#     ("did the task change this rule?"). Added skip markers FAIL.
+#     Pure moves — same assertions, new location — are info, which is
+#     what a legitimate reorganization looks like;
+#   - a commit touching only implementation/doc files is clean.
 #
 # Usage:
-#   check-test-diff.sh BASE [--head REF] [--path PATH]...
+#   check-test-diff.sh BASE [--head REF]
 #
-#   BASE        ref to diff against (e.g. origin/main, HEAD~1)
-#   --head REF  ref for the "new" side (default: HEAD)
-#   --path P    restrict the diff to PATH (repeatable)
+#   BASE        ref to start from (e.g. origin/main, main, HEAD~5)
+#   --head REF  end ref (default: HEAD)
 #
-# Exit codes: 0 = clean or only allowed changes, 1 = suspicious changes.
-# Escape hatch for legitimate spec changes: ALLOW_TEST_CHANGES=1 — but
-# prefer landing spec/test changes in their own commit instead.
+# Exit codes: 0 = clean, 1 = violations found, 2 = usage error.
+# Escape hatch for legitimate mixed changes: ALLOW_TEST_CHANGES=1 —
+# but prefer landing spec/test changes in their own commit.
 #
 # Test-file detection covers common layouts: tests/ dirs, test_*.py,
-# *_test.*, *.test.*, *.spec.*. Extend TEST_GLOBS if needed.
+# *_test.*, *.test.*, *.spec.*. Doc files (*.md, *.rst) are exempt from
+# the "implementation" classification so spec+tests commits pass.
 
 set -euo pipefail
 
 BASE=""
 HEAD_REF="HEAD"
-PATHS=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --head) HEAD_REF="$2"; shift 2 ;;
-        --path) PATHS+=("$2"); shift 2 ;;
-        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
         -*) echo "unknown option: $1" >&2; exit 2 ;;
         *) BASE="$1"; shift ;;
     esac
 done
 
-[ -n "$BASE" ] || { echo "usage: $0 BASE [--head REF] [--path PATH]..." >&2; exit 2; }
+[ -n "$BASE" ] || { echo "usage: $0 BASE [--head REF]" >&2; exit 2; }
 
 is_test_file() {
-    # $1 = path. Match test dirs and common test file naming.
     case "$1" in
         */tests/*|tests/*|test/*|*/test/*) return 0 ;;
         test_*.py|*_test.py|test_*.rb|*_test.rb|*_test.go|*_test.java) return 0 ;;
@@ -48,103 +56,134 @@ is_test_file() {
     return 1
 }
 
-range="${BASE}...${HEAD_REF}"
-diff_args=(diff --name-status -U0 "$range")
-[ ${#PATHS[@]} -gt 0 ] && diff_args+=("--" "${PATHS[@]}")
-
-fail=0
-modified_tests=()
-deleted_tests=()
-added_tests=()
-assertion_removals=()
-skip_additions=()
-test_fn_removed=0
-test_fn_added=0
-
-while IFS=$'\t' read -r status file1 file2; do
-    path="${file2:-$file1}"
-    is_test_file "$path" || continue
-    case "$status" in
-        M*) modified_tests+=("$path") ;;
-        D*) deleted_tests+=("$path") ;;
-        A*|\?*) added_tests+=("$path") ;;
+is_doc_file() {
+    case "$1" in
+        *.md|*.rst|*.txt|LICENSE*|CHANGELOG*) return 0 ;;
     esac
-done < <(git "${diff_args[@]}")
-
-# Scan changed lines in modified test files for removed assertions,
-# added skips, and test-function count changes.
-for f in "${modified_tests[@]}" "${deleted_tests[@]}"; do
-    [ -f "$f" ] || continue
-    while IFS= read -r line; do
-        case "$line" in
-            -\?*) ;;  # diff metadata, skip
-            -*)
-                content="${line:1}"
-                case "$content" in
-                    *assert*|*expect\(*|*should.*|*verify\(*|*t.Fatal*|*require.*)
-                        assertion_removals+=("$f: ${content:0:80}") ;;
-                esac
-                case "$content" in
-                    *"def test_"*|*"it("*|*"test("*|*"describe("*)
-                        test_fn_removed=$((test_fn_removed+1)) ;;
-                esac
-                ;;
-            +*)
-                content="${line:1}"
-                case "$content" in
-                    *skip*|*xfail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
-                        skip_additions+=("$f: ${content:0:80}") ;;
-                esac
-                case "$content" in
-                    *"def test_"*|*"it("*|*"test("*|*"describe("*)
-                        test_fn_added=$((test_fn_added+1)) ;;
-                esac
-                ;;
-        esac
-    done < <(git diff -U0 "$range" -- "$f" 2>/dev/null | grep -E '^[+-]' | grep -vE '^\+\+\+|^---' || true)
-done
-
-report() {
-    echo "check-test-diff: $1" >&2
+    return 1
 }
 
-if [ ${#deleted_tests[@]} -gt 0 ]; then
-    report "FAIL — test files deleted:"
-    printf '  %s\n' "${deleted_tests[@]}" >&2
-    fail=1
-fi
+norm() { sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/[[:space:]][[:space:]]*/ /g'; }
 
-if [ ${#modified_tests[@]} -gt 0 ]; then
-    report "FAIL — test files modified (spec changes belong in their own commit):"
-    printf '  %s\n' "${modified_tests[@]}" >&2
-    fail=1
-fi
+fail=0
+range_note="${BASE}...${HEAD_REF}"
 
-if [ ${#assertion_removals[@]} -gt 0 ]; then
-    report "FAIL — assertion lines removed:"
-    printf '  %s\n' "${assertion_removals[@]:0:20}" >&2
-    [ ${#assertion_removals[@]} -gt 20 ] && echo "  ... and $(( ${#assertion_removals[@]} - 20 )) more" >&2
-    fail=1
-fi
+# For each commit, classify touched files and, for test-only commits,
+# scan the diff for bent assertions and added skips.
+while IFS= read -r commit; do
+    short="${commit:0:8}"
+    parent="${commit}^"
+    if ! git rev-parse --verify --quiet "$parent" >/dev/null; then
+        # root commit: diff against the empty tree
+        name_status=$(git diff-tree --root --no-commit-id --name-status -r --no-renames "$commit")
+        diff_range=("4b825dc642cb6eb9a060e54bf8d69288fbee4904" "$commit")
+    else
+        name_status=$(git diff --name-status --no-renames "$parent" "$commit")
+        diff_range=("$parent" "$commit")
+    fi
 
-if [ ${#skip_additions[@]} -gt 0 ]; then
-    report "FAIL — skip markers added:"
-    printf '  %s\n' "${skip_additions[@]:0:20}" >&2
-    [ ${#skip_additions[@]} -gt 20 ] && echo "  ... and $(( ${#skip_additions[@]} - 20 )) more" >&2
-    fail=1
-fi
+    has_test=0; has_impl=0; has_doc=0
+    test_files=()
+    while IFS=$'\t' read -r status path _; do
+        [ -z "${path:-}" ] && continue
+        is_test_file "$path" && { has_test=1; test_files+=("$path"); continue; }
+        is_doc_file "$path" && { has_doc=1; continue; }
+        has_impl=1
+    done <<< "$name_status"
 
-if [ $test_fn_removed -gt $test_fn_added ]; then
-    report "WARN — test functions removed ($test_fn_removed) exceed added ($test_fn_added); verify coverage wasn't dropped"
-fi
+    if [ "$has_test" -eq 1 ] && [ "$has_impl" -eq 1 ]; then
+        echo "check-test-diff: FAIL $short — commit mixes test and implementation changes:" >&2
+        while IFS=$'\t' read -r status path _; do
+            [ -n "${path:-}" ] && printf '  %s %s\n' "$status" "$path" >&2
+        done <<< "$name_status"
+        fail=1
+        continue
+    fi
 
-if [ ${#added_tests[@]} -gt 0 ]; then
-    report "info — new test files added (ok if this is the spec/tests commit):"
-    printf '  %s\n' "${added_tests[@]:0:10}" >&2
-fi
+    [ "$has_test" -eq 1 ] || continue  # impl/doc-only commit: clean
+
+    # Test-only (or test+doc) commit: scan for bent tests.
+    removed_asserts=(); added_asserts=(); removed_skips=(); added_skips=()
+    test_fn_removed=0; test_fn_added=0
+
+    for tf in "${test_files[@]}"; do
+        while IFS= read -r line; do
+            case "$line" in
+                -\?*) ;;
+                -*)
+                    content="$(printf '%s' "${line:1}" | norm)"
+                    case "$content" in
+                        *assert*|*expect\(*|*should.*|*verify\(*|*t.Fatal*|*require.*)
+                            removed_asserts+=("$content") ;;
+                    esac
+                    case "$content" in
+                        *skip*|*xfail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
+                            removed_skips+=("$content") ;;
+                    esac
+                    case "$content" in
+                        *"def test_"*|*"it("*|*"test("*|*"describe("*)
+                            test_fn_removed=$((test_fn_removed+1)) ;;
+                    esac
+                    ;;
+                +*)
+                    content="$(printf '%s' "${line:1}" | norm)"
+                    case "$content" in
+                        *assert*|*expect\(*|*should.*|*verify\(*|*t.Fatal*|*require.*)
+                            added_asserts+=("$content") ;;
+                    esac
+                    case "$content" in
+                        *skip*|*xfail*|*unittest.skip*|*@Disabled*|*.only\(*|*fit\(*|*fdescribe*|*--ignore*)
+                            added_skips+=("$content") ;;
+                    esac
+                    case "$content" in
+                        *"def test_"*|*"it("*|*"test("*|*"describe("*)
+                            test_fn_added=$((test_fn_added+1)) ;;
+                    esac
+                    ;;
+            esac
+        done < <(git diff -U0 "${diff_range[@]}" -- "$tf" 2>/dev/null \
+                 | grep -E '^[+-]' | grep -vE '^\+\+\+|^---' || true)
+    done
+
+    # Multiset comparison: removed assertion contents with no added
+    # counterpart are genuinely dropped/weakened; matched ones are moves.
+    unmatched_removed=$(comm -23 \
+        <(printf '%s\n' "${removed_asserts[@]}" | sort) \
+        <(printf '%s\n' "${added_asserts[@]}" | sort) | sed '/^$/d' || true)
+    unmatched_added_skips=$(comm -23 \
+        <(printf '%s\n' "${added_skips[@]}" | sort) \
+        <(printf '%s\n' "${removed_skips[@]}" | sort) | sed '/^$/d' || true)
+
+    commit_fail=0
+    if [ -n "$unmatched_removed" ]; then
+        if [ "${#added_asserts[@]}" -eq 0 ]; then
+            echo "check-test-diff: FAIL $short — assertion lines removed and none added (coverage dropped?):" >&2
+            printf '%s\n' "$unmatched_removed" | head -20 | sed 's/^/  /' >&2
+            commit_fail=1
+        else
+            n_unmatched=$(printf '%s\n' "$unmatched_removed" | sed '/^$/d' | wc -l)
+            echo "check-test-diff: REVIEW $short — $n_unmatched assertion line(s) changed; verify each is a spec change ('did the task change this rule?'):" >&2
+            printf '%s\n' "$unmatched_removed" | head -20 | sed 's/^/  /' >&2
+        fi
+    fi
+    if [ -n "$unmatched_added_skips" ]; then
+        echo "check-test-diff: FAIL $short — skip markers added:" >&2
+        printf '%s\n' "$unmatched_added_skips" | head -20 | sed 's/^/  /' >&2
+        commit_fail=1
+    fi
+    if [ "$test_fn_removed" -gt "$test_fn_added" ]; then
+        echo "check-test-diff: WARN $short — test functions removed ($test_fn_removed) exceed added ($test_fn_added)" >&2
+    fi
+
+    moved=$(( ${#removed_asserts[@]} - $(printf '%s\n' "$unmatched_removed" | sed '/^$/d' | wc -l) ))
+    [ "$moved" -gt 0 ] && \
+        echo "check-test-diff: info $short — $moved assertion line(s) moved (reorganization, not weakening)" >&2
+
+    [ "$commit_fail" -eq 1 ] && fail=1
+done < <(git rev-list --reverse --no-merges "${BASE}..${HEAD_REF}")
 
 if [ "$fail" -eq 0 ]; then
-    echo "check-test-diff: clean — no suspicious test changes in ${range}"
+    echo "check-test-diff: clean — no suspicious test changes in ${range_note}"
     exit 0
 fi
 
@@ -153,6 +192,6 @@ if [ "${ALLOW_TEST_CHANGES:-0}" = "1" ]; then
     exit 0
 fi
 
-echo "check-test-diff: failed. If these are legitimate spec changes," >&2
-echo "land them in their own commit and re-run against that commit's parent." >&2
+echo "check-test-diff: failed. Test changes belong in their own commit;" >&2
+echo "spec changes should be reviewable as spec changes, not implementation." >&2
 exit 1

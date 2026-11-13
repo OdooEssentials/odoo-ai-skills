@@ -114,6 +114,21 @@ claim. Never let the same agent write the tests and certify them —
 where it matters, a second pass (different session or model) checks
 the tests against the spec.
 
+## Reorganizing existing tests
+
+Test reorganization follows the same rule: tests may **move and
+rename, but their assertions should not change**. A cleanup diff should
+look like moved code, not edited expectations — "while I was in there"
+is where bent tests hide.
+
+When the task is restructuring a suite (renaming files, regrouping by
+feature, splitting regression tests, fixing collection pitfalls), read
+`references/test-organization.md` first — it defines the framework
+(organize by story, by scope, by provenance) and the reorganization
+workflow (baseline → classify → re-pin coupled tests → re-group →
+verify). Re-pinning an implementation-coupled test is a spec-sensitive
+change and gets its own commit and review.
+
 ## Risk tiers
 
 | Change | Required separation |
@@ -135,12 +150,19 @@ the tests against the spec.
 
 ## Mechanical guard
 
-`scripts/check-test-diff.sh <base-ref>` inspects the diff since a base
-ref and fails on:
+`scripts/check-test-diff.sh <base-ref>` checks **each commit** in the
+range and enforces the separation mechanically:
 
-- modified or deleted files under test roots,
-- removed lines containing assertions,
-- added skip markers.
+- a commit touching both test files and implementation files **fails**
+  (mixed commit — split it),
+- a test-only (or test+docs) commit is scanned for bent tests:
+  assertions removed with none added **fail** (coverage dropped),
+  assertions changed to different content get a **REVIEW** flag —
+  a changed expectation is either a spec change or a bent test, and
+  only the "did the task change this rule?" question can tell —
+  added skip markers **fail**, and pure assertion *moves* are info,
+  which is what a legitimate reorganization looks like,
+- implementation-only commits are clean.
 
 Run it in CI as a required check, and locally before pushing. It does
 not replace review — it makes tampering visible and blocks the lazy
@@ -162,6 +184,8 @@ paths. See `scripts/check-test-diff.sh --help`.
 
 ## References
 
+- `references/test-organization.md` — framework for organizing test
+  suites (by story, scope, provenance) and the reorganization workflow.
 - Research writeup (test tampering taxonomy, prior art, defense
   model): `notebook` repo, `research/tests-as-spec-agentic-workflows.md`
 - Skill spec and roadmap: `notebook` repo, `projects/agentic-testing-skill.md`
