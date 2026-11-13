@@ -60,13 +60,16 @@ OCA repos ship a `.pre-commit-config.yaml` that reviewers expect to pass.
 Module documentation lives in `readme/` fragments (`DESCRIPTION.md`,
 `CONFIGURE.md`, `USAGE.md`, `CONTRIBUTORS.md`, `ROADMAP.md`,
 `CREDITS.md`). The rendered `README.rst` and `static/description/index.html`
-are **generated** — never edit them directly.
+are **generated** — never edit or commit them; the post-merge bot
+regenerates them (`[BOT] post-merge updates` commits).
 
-- Edit only the fragments; the `oca-gen-addon-readme` pre-commit hook
-  regenerates the outputs. Commit the regenerated files together with the
-  fragment changes.
-- Before pushing, verify the generated files are in sync:
-  `pre-commit run --files <module>/` should report no modifications.
+- Edit only the fragments, in the same commit as the code change they
+  document — do not collect doc updates in a separate commit.
+- New modules still ship the whool-init generated `README.rst` and
+  `index.html` skeletons; just don't regenerate them on later changes.
+- Running `pre-commit` locally may modify the generated files as a side
+  effect — revert them before committing (`git checkout -- <module>/README.rst
+  <module>/static/description/index.html`).
 
 ## Version and metadata conventions
 
