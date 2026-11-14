@@ -13,7 +13,7 @@ This repository stores reusable AI skills for Odoo work.
 - `odoo-coding-conventions` — project-specific conventions that extend the upstream skills below.
 - `odoo-i18n` — export, import and manage module translations.
 - `odoo-website-snippets` — create Website Builder building blocks: static/dynamic snippets, panel registration, options, translations.
-- `living-design-doc` — per-feature living design docs; for Odoo modules they live in the module's `readme/` fragments.
+- `living-design-doc` — per-feature living specs (SPECS docs); for Odoo modules the spec is `readme/SPECS.md`, kept separate from the end-user `readme/` fragments.
 - `agentic-testing` — test discipline for agent-assisted work: tests are the executable spec, test changes are separated from implementation changes, and `scripts/check-test-diff.sh` guards against test tampering.
 
 ## Skill format

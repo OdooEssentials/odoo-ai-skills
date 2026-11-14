@@ -56,8 +56,9 @@ moves *in isolation*; all are suspect until classified:
 
 ### 1. Spec first, tests derived from it
 
-Write or confirm the spec (acceptance criteria, design doc, ticket)
-before tests. Derive tests from the spec's invariants — inputs,
+Write or confirm the spec (acceptance criteria, design doc, ticket —
+for repo features this is the `SPECS` doc from the `living-design-doc`
+skill) before tests. Derive tests from the spec's invariants — inputs,
 outputs, edge cases, side effects — not from reading the code that will
 satisfy them. A test written after the code describes what the code
 does and passes by construction.
