@@ -1,6 +1,6 @@
 ---
 name: living-design-doc
-description: Create or maintain a per-feature "living spec" — a repo-local SPECS document that starts as spec + task list and evolves into a decision record, kept separate from end-user documentation. For Odoo addon modules the spec lives in readme/SPECS.md (not an OCA fragment) while DESCRIPTION/CONFIGURE/USAGE stay end-user-facing. Use when designing a feature or module, making a non-trivial technical decision, or when an existing design doc needs updating.
+description: Create or maintain per-feature "living specs" — one Markdown file per feature under a specs/ directory, starting as spec + task list and evolving into a decision record, kept separate from end-user documentation. For Odoo addon modules specs live in <module>/specs/ while readme/ fragments stay end-user-facing. Use when designing a feature or module, making a non-trivial technical decision, or when an existing design doc needs updating.
 ---
 
 # Living specs
@@ -22,24 +22,28 @@ user-facing: it never ships inside generated user docs.
 - Check `AGENTS.md`/project rules for doc placement and status
   conventions already in use.
 
-## Where the spec lives
+## Where specs live
 
-Decide by what the work is:
+Specs get their own `specs/` directory — one file per feature — kept
+separate from user docs (`docs/`, `README.rst`, `readme/` fragments):
 
-- **Odoo addon module exists** → `readme/SPECS.md` inside the module.
-  It is deliberately *not* an OCA readme fragment — the
-  `oca-gen-addon-readme` generator only assembles the known fragment
-  names, so SPECS stays repo-local and out of `README.rst`.
-- **Module still being designed, no skeleton yet** → one doc in
-  `docs/<MODULE_NAME>.md`. When the module is created, move it to
-  `readme/SPECS.md`.
-- **Not an Odoo module** → `docs/<FEATURE_NAME>.md` (the doc *is* the
-  spec — same skeleton below).
+- **Not an Odoo module** → `specs/<feature>.md` at the repo root.
+- **Odoo addon module exists** → `<module>/specs/<feature>.md`, inside
+  the module next to the code it describes. Specs are deliberately
+  *not* `readme/` fragments — the `oca-gen-addon-readme` generator only
+  assembles the known fragment names, so specs stay repo-local and out
+  of `README.rst`.
+- **Module still being designed, no skeleton yet** →
+  `specs/<module>.md` at the repo root. When the module is created,
+  move it to `<module>/specs/`.
+- Add an index line for each spec where readers look — a `specs/`
+  README or a bullet list in `AGENTS.md` — so specs stay discoverable
+  as the directory grows.
 
-## SPECS skeleton
+## Spec skeleton
 
-SCREAMING_SNAKE filename matching existing docs. Keep it to a page or
-two:
+One file per feature, lowercase-hyphen name (`specs/import-csv.md`).
+Keep it to a page or two:
 
 ```markdown
 # <Feature> — spec
@@ -47,8 +51,9 @@ two:
 **Status:** draft | accepted | in progress | shipped
 **Date:** <YYYY-MM-DD>
 **Scope:** <which repos/components this touches>
-**Related:** <the specs owning adjacent scopes — so a reader always
-knows which file a fact belongs in>
+**Related:** <the other spec files this one depends on or borders —
+paths under specs/ — so a reader always knows which file a fact
+belongs in>
 
 ## Context            <- the problem, why now
 ## Spec               <- requirements and acceptance criteria, in enough
@@ -71,9 +76,9 @@ the test change that follows cites it.
 
 Once the addon skeleton exists, the documentation splits in two:
 
-**`readme/SPECS.md`** — the living spec (skeleton above). Holds status,
-decisions, rejected alternatives, plan and tasks. Agent-facing;
-excluded from `README.rst`.
+**`<module>/specs/`** — the living specs (skeleton above), one file per
+feature. They hold status, decisions, rejected alternatives, plan and
+tasks. Agent-facing; excluded from `README.rst`.
 
 **`readme/` fragments** — end-user documentation only, the canonical
 OCA fragment names that `oca-gen-addon-readme` assembles into
@@ -86,7 +91,7 @@ OCA fragment names that `oca-gen-addon-readme` assembles into
 | `USAGE.md` | Use cases: expected result and the steps to get there, one subsection per case |
 
 There is no `ROADMAP.md` fragment — roadmap, decisions and tasks live
-in SPECS where they belong. Other standard fragments (`INSTALL.md`,
+in the specs where they belong. Other standard fragments (`INSTALL.md`,
 `CONTRIBUTORS.md`, `HISTORY.md`) can be added when the module needs
 them.
 
@@ -137,9 +142,10 @@ The spec and the test suite are two views of the same contract:
   read the decisions/alternatives of any related spec. Don't re-propose
   a rejected option unless you have genuinely new evidence — and say
   what's new.
-- **One spec per feature.** For a module, `readme/SPECS.md` is that one
-  spec; the fragments are its public face. Project principles belong
-  elsewhere (`AGENTS.md` = the constitution; SPECS = the features).
+- **One spec per feature.** Each feature gets its own file under
+  `specs/`; the end-user docs are its public face. Project principles
+  belong elsewhere (`AGENTS.md` = the constitution; `specs/` = the
+  features).
 - **After shipping, the spec graduates** — it becomes the decision
   record. Update status, leave the tasks checked, keep everything else.
   End-user docs (fragments, `docs/`) are updated to match shipped
@@ -161,7 +167,7 @@ The spec and the test suite are two views of the same contract:
 - A second source of truth: duplicating the spec's content into comments
   or end-user docs — link to it instead. Conversely, never paste
   roadmap/tasks/decisions into `README.rst` fragments — that's what
-  SPECS is for.
+  `specs/` is for.
 - Milestone-thinking: treating the spec as "done" — it is done when the
   feature is deleted.
 - Spec without work or work without spec: the two must land in the same
@@ -171,7 +177,7 @@ The spec and the test suite are two views of the same contract:
 
 ## The one-line version
 
-Dated, single-authored, repo-local SPECS document with a status, a
-specification precise enough to test against, kept rejections, and a
-task list — separate from end-user docs, updated in the same commits
-that do the work.
+Dated, single-authored, per-feature files under `specs/` — each with a
+status, a specification precise enough to test against, kept rejections,
+and a task list — separate from end-user docs, updated in the same
+commits that do the work.
